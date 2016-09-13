@@ -1,21 +1,25 @@
 #include <stdio.h>
+#include <stdlib.h>
 
-/* Input buffer */
-static char input[2048];
+#include <editline/readline.h>
+#include <editline/history.h>
 
 int main(int argc, char** argv) {
     puts("Lispy version 0.0.0.0.1");
-    puts("Press Ctrl+c to Exit\n");
+    puts("Press Ctrl+c to Exit");
 
     while (1) {
-        // Prompt
-        fputs("\nlispy> ", stdout);
+        // Prompt & save input
+        char* input = readline("\nlispy> ");
 
-        // Read
-        fgets(input, 2048, stdin);
+        // Save to history
+        add_history(input);
 
         // Echo
-        printf("You said: %s", input);
+        printf("You said: %s\n", input);
+
+        // Free up input
+        free(input);
     }
     return 0;
 }
