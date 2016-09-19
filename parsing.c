@@ -26,6 +26,38 @@ void add_history(char* unused) {}
 #include <editline/history.h>
 #endif
 
+long apply(long x, char* op, long y) {
+    if (strcmp(op, "+") == 0) { return x + y; }
+    if (strcmp(op, "-") == 0) { return x - y; }
+    if (strcmp(op, "*") == 0) { return x * y; }
+    if (strcmp(op, "/") == 0) { return x / y; }
+    return 0;
+}
+
+long eval(mpc_ast_t* t) {
+    // Numbers are self-evaluating
+    if (strstr(t->tag, "number")) {
+        return atoi(t->contents);
+    }
+
+    // Must be an expression, then.
+    // Operator is always the second element
+    char* op = t->children[1]->contents;
+
+    // Eval the first argument to the operator
+    // (there will always be at least one)
+    long x = eval(t->children[2]);
+
+    // Eval any remaining args
+    int i = 3;
+    while (strstr(t->children[i]->tag, "expr")) {
+        x = apply(x, op, eval(t->children[i]));
+        i++;
+    }
+
+    return x;
+}
+
 int main(int argc, char** argv) {
     // Create some parsers
     mpc_parser_t* Number    = mpc_new("number");
@@ -56,8 +88,9 @@ int main(int argc, char** argv) {
         // Attempt to parse input
         mpc_result_t r;
         if (mpc_parse("<stdin>", input, Lispy, &r)) {
-            // Success! Print AST
-            mpc_ast_print(r.output);
+            // Success! Eval & print answer
+            long result = eval(r.output);
+            printf("%li\n", result);
             mpc_ast_delete(r.output);
         } else {
             // Failure :( Print the error
