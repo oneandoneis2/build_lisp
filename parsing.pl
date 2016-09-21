@@ -14,19 +14,24 @@ say "Plisp - Lisp in Perl";
 prompt();
 
 sub prompt {
+    # Prompt for input
     print "\nPlisp> ";
 
     my $input = <>;
     exit unless $input;
     chomp $input;
-    say input_eval($input);
+    input_eval($input);
     prompt();
 }
 
 sub input_eval {
+    # Print results of evaluating input
     my $line = shift;
+    # Split input up into tokens
     my $tokens = tokenize($line);
+    # Turn tokens into proper AST
     my $ast = parse($tokens);
+    # Print the results of evaluating the AST(s)
     for my $tree (@$ast) {
         say lisp_eval($tree);
     }
@@ -34,16 +39,17 @@ sub input_eval {
 
 sub tokenize {
     my $line = shift;
+    # Split string into characters
     my @chars = ($line =~ /./g);
     my $index = 0;
-
-    my $ast = get_tokens(\@chars, \$index, [], undef);
-    return $ast;
+    # Tokenize
+    get_tokens(\@chars, \$index, [], undef);
 }
 
 sub get_tokens {
     my ($chars, $index, $ast, $word) = @_;
 
+    # The actual S-expr parse!
     while ($$index < @$chars) {
         my $char = $chars->[$$index];
         $$index++;
@@ -74,6 +80,7 @@ sub get_tokens {
 }
 
 sub parse {
+    # Label the tokens correctly for the AST
     my $tokens = shift;
     my $tree = [];
     for my $i (@$tokens) {
@@ -96,6 +103,9 @@ sub parse {
 }
 
 sub lisp_eval {
+    # The eval part of eval-apply
+    # Right now, only handles calculator basics
+    # Numbers & primitive maths operators - no symbols etc.
     my $exp = shift;
     my ($type) = keys %$exp;
 
@@ -103,13 +113,14 @@ sub lisp_eval {
     if ($type eq 'num') {
         return $exp->{num}
     }
-    # Then it's an expression
+    # If we got here, then it's an expression
     my $elems = $exp->{expr};
     my ($op, @args) = @$elems;
     return lisp_apply($op, \@args);
 }
 
 sub lisp_apply {
+    # Apply - right now can only apply primitive procedures
     my ($op, $args) = @_;
 
     my @evald_args = map { lisp_eval($_) } @$args;
@@ -120,7 +131,8 @@ sub lisp_apply {
     elsif   ($op->{op} eq '*') { prim_multiply(@evald_args) }
 }
 
-sub prim_add        { my $total = shift; map { $total + $_ } @_ }
-sub prim_multiply   { my $total = shift; map { $total * $_ } @_ }
-sub prim_subtract   { my $total = shift; map { $total - $_ } @_ }
-sub prim_divide     { my $total = shift; map { $total / $_ } @_ }
+# The primitive operators
+sub prim_add        { my $total = shift; map { $total += $_ } @_; $total }
+sub prim_multiply   { my $total = shift; map { $total *= $_ } @_; $total }
+sub prim_subtract   { my $total = shift; map { $total -= $_ } @_; $total }
+sub prim_divide     { my $total = shift; map { $total /= $_ } @_; $total }
