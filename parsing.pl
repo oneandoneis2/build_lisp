@@ -6,6 +6,7 @@
 use strict;
 use warnings;
 use feature 'say';
+use Data::Dumper;
 
 say "Plisp - Lisp in Perl";
 
@@ -24,5 +25,44 @@ sub prompt {
 
 sub input_eval {
     my $line = shift;
-    $line;
+    return Dumper tokenize($line);
+}
+
+sub tokenize {
+    my $line = shift;
+    my @chars = ($line =~ /./g);
+    my $index = 0;
+
+    my $ast = get_tokens(\@chars, \$index, [], '');
+    return $ast->[0];
+}
+
+sub get_tokens {
+    my ($chars, $index, $ast, $word) = @_;
+
+    while ($$index < @$chars) {
+        my $char = $chars->[$$index];
+        $$index++;
+
+        if ($char eq '(') {
+            push @$ast, get_tokens($chars, $index, [], '');
+        }
+        elsif ($char eq ')') {
+            if ($word) {
+                push @$ast, $word;
+                $word = '';
+            }
+            return $ast;
+        }
+        elsif ($char =~ /\s/) {
+            if ($word) {
+                push @$ast, $word;
+                $word = '';
+            }
+        }
+        else {
+            $word .= $char;
+        }
+    }
+    return $ast;
 }
