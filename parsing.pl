@@ -25,7 +25,8 @@ sub prompt {
 
 sub input_eval {
     my $line = shift;
-    return Dumper tokenize($line);
+    my $tokens = tokenize($line);
+    return Dumper parse($tokens);
 }
 
 sub tokenize {
@@ -34,7 +35,7 @@ sub tokenize {
     my $index = 0;
 
     my $ast = get_tokens(\@chars, \$index, [], '');
-    return $ast->[0];
+    return $ast;
 }
 
 sub get_tokens {
@@ -64,5 +65,28 @@ sub get_tokens {
             $word .= $char;
         }
     }
+    push @$ast, $word if $word;
     return $ast;
+}
+
+sub parse {
+    my $tokens = shift;
+    my $tree = [];
+    for my $i (@$tokens) {
+        if (ref $i eq 'ARRAY') {
+            push @$tree, {expr => parse($i) };
+        }
+        else {
+            if ($i =~ /\+|-|\*|\//) {
+                push @$tree, { op => $i }
+            }
+            elsif ($i =~ /\d+(\.\d+)?/) {
+                push @$tree, { num => $i }
+            }
+            else {
+                push @$tree, { symbol => $i }
+            }
+        }
+    }
+    return $tree;
 }
