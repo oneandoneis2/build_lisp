@@ -26,7 +26,10 @@ sub prompt {
 sub input_eval {
     my $line = shift;
     my $tokens = tokenize($line);
-    return Dumper parse($tokens);
+    my $ast = parse($tokens);
+    for my $tree (@$ast) {
+        say lisp_eval($tree);
+    }
 }
 
 sub tokenize {
@@ -34,7 +37,7 @@ sub tokenize {
     my @chars = ($line =~ /./g);
     my $index = 0;
 
-    my $ast = get_tokens(\@chars, \$index, [], '');
+    my $ast = get_tokens(\@chars, \$index, [], undef);
     return $ast;
 }
 
@@ -46,26 +49,27 @@ sub get_tokens {
         $$index++;
 
         if ($char eq '(') {
-            push @$ast, get_tokens($chars, $index, [], '');
+            push @$ast, get_tokens($chars, $index, [], undef);
         }
         elsif ($char eq ')') {
-            if ($word) {
+            if (defined $word) {
                 push @$ast, $word;
-                $word = '';
+                $word = undef;
             }
             return $ast;
         }
         elsif ($char =~ /\s/) {
-            if ($word) {
+            if (defined $word) {
                 push @$ast, $word;
-                $word = '';
+                $word = undef;
             }
         }
         else {
+            $word = '' unless defined $word;
             $word .= $char;
         }
     }
-    push @$ast, $word if $word;
+    push @$ast, $word if defined $word;
     return $ast;
 }
 
@@ -90,3 +94,33 @@ sub parse {
     }
     return $tree;
 }
+
+sub lisp_eval {
+    my $exp = shift;
+    my ($type) = keys %$exp;
+
+    # Numbers are self-evaluating
+    if ($type eq 'num') {
+        return $exp->{num}
+    }
+    # Then it's an expression
+    my $elems = $exp->{expr};
+    my ($op, @args) = @$elems;
+    return lisp_apply($op, \@args);
+}
+
+sub lisp_apply {
+    my ($op, $args) = @_;
+
+    my @evald_args = map { lisp_eval($_) } @$args;
+
+    if      ($op->{op} eq '+') { prim_add(@evald_args) }
+    elsif   ($op->{op} eq '-') { prim_subtract(@evald_args) }
+    elsif   ($op->{op} eq '/') { prim_divide(@evald_args) }
+    elsif   ($op->{op} eq '*') { prim_multiply(@evald_args) }
+}
+
+sub prim_add        { my $total = shift; map { $total + $_ } @_ }
+sub prim_multiply   { my $total = shift; map { $total * $_ } @_ }
+sub prim_subtract   { my $total = shift; map { $total - $_ } @_ }
+sub prim_divide     { my $total = shift; map { $total / $_ } @_ }
