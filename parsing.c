@@ -1,24 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
+
+
 #include "mpc.h"
 
-// If compiling under Windows:
 #ifdef _WIN32
-#include <string.h>
 
 static char buffer[2048];
 
-// Fake readline function
 char* readline(char* prompt) {
-    fputs(prompt, stdout);
-    fgets(buffer, 2048, stdin);
-    char* cpy = malloc(strlen(buffer)+1);
-    strcpy(cpy, buffer);
-    cpy[strlen(cpy)-1] = '\0';
-    return cpy;
+  fputs(prompt, stdout);
+  fgets(buffer, 2048, stdin);
+  char* cpy = malloc(strlen(buffer)+1);
+  strcpy(cpy, buffer);
+  cpy[strlen(cpy)-1] = '\0';
+  return cpy;
 }
 
-// Fake history
 void add_history(char* unused) {}
 
 #else
@@ -26,35 +24,33 @@ void add_history(char* unused) {}
 #include <editline/history.h>
 #endif
 
-/* Declare New Lisp Value Struct */
-typedef struct lval {
-  int type;
-  long num;
-  /* Error and Symbol types have some string data */
-  char* err;
-  char* sym;
-  /* Count and Pointer to a list of "lval*" */
-  int count;
-  struct lval** cell;
-} lval;
+/* Create Enumeration of Possible Error Types */
+enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
 
 /* Create Enumeration of Possible lval Types */
-enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_SEXPR };
+enum { LVAL_NUM, LVAL_ERR };
+
+/* Declare New lval Struct */
+typedef struct {
+  int type;
+  long num;
+  int err;
+} lval;
 
 /* Create a new number type lval */
 lval lval_num(long x) {
-    lval v;
-    v.type = LVAL_NUM;
-    v.num = x;
-    return v;
+  lval v;
+  v.type = LVAL_NUM;
+  v.num = x;
+  return v;
 }
 
 /* Create a new error type lval */
 lval lval_err(int x) {
-    lval v;
-    v.type = LVAL_ERR;
-    v.err = x;
-    return v;
+  lval v;
+  v.type = LVAL_ERR;
+  v.err = x;
+  return v;
 }
 
 /* Print an "lval" */
@@ -83,7 +79,7 @@ void lval_print(lval v) {
 /* Print an "lval" followed by a newline */
 void lval_println(lval v) { lval_print(v); putchar('\n'); }
 
-lval apply(lval x, char* op, lval y) {
+lval eval_op(lval x, char* op, lval y) {
 
   /* If either value is an error return it */
   if (x.type == LVAL_ERR) { return x; }
@@ -117,7 +113,7 @@ lval eval(mpc_ast_t* t) {
 
   int i = 3;
   while (strstr(t->children[i]->tag, "expr")) {
-    x = apply(x, op, eval(t->children[i]));
+    x = eval_op(x, op, eval(t->children[i]));
     i++;
   }
 
@@ -125,51 +121,46 @@ lval eval(mpc_ast_t* t) {
 }
 
 int main(int argc, char** argv) {
-    // Create some parsers
-    mpc_parser_t* Number = mpc_new("number");
-    mpc_parser_t* Symbol = mpc_new("symbol");
-    mpc_parser_t* Sexpr  = mpc_new("sexpr");
-    mpc_parser_t* Expr   = mpc_new("expr");
-    mpc_parser_t* Lispy  = mpc_new("lispy");
 
-    mpca_lang(MPCA_LANG_DEFAULT,
-        "                                          \
-         number : /-?[0-9]+/ ;                    \
-         symbol : '+' | '-' | '*' | '/' ;         \
-         sexpr  : '(' <expr>* ')' ;               \
-         expr   : <number> | <symbol> | <sexpr> ; \
-         lispy  : /^/ <expr>* /$/ ;               \
-        ",
-        Number, Symbol, Sexpr, Expr, Lispy);
+  mpc_parser_t* Number = mpc_new("number");
+  mpc_parser_t* Operator = mpc_new("operator");
+  mpc_parser_t* Expr = mpc_new("expr");
+  mpc_parser_t* Lispy = mpc_new("lispy");
 
-    puts("Lispy version 0.0.0.0.1");
-    puts("Press Ctrl+c to Exit");
+  mpca_lang(MPCA_LANG_DEFAULT,
+    "                                                     \
+      number   : /-?[0-9]+/ ;                             \
+      operator : '+' | '-' | '*' | '/' ;                  \
+      expr     : <number> | '(' <operator> <expr>+ ')' ;  \
+      lispy    : /^/ <operator> <expr>+ /$/ ;             \
+    ",
+    Number, Operator, Expr, Lispy);
 
-    while (1) {
-        // Prompt & save input
-        char* input = readline("\nlispy> ");
+  puts("Lispy Version 0.0.0.0.4");
+  puts("Press Ctrl+c to Exit\n");
 
-        // Save to history
-        add_history(input);
+  while (1) {
 
-        // Attempt to parse input
-        mpc_result_t r;
-        if (mpc_parse("<stdin>", input, Lispy, &r)) {
-            // Success! Eval & print answer
-            lval result = eval(r.output);
-            lval_println(result);
-            mpc_ast_delete(r.output);
-        } else {
-            // Failure :( Print the error
-            mpc_err_print(r.error);
-            mpc_err_delete(r.error);
-        }
+    char* input = readline("lispy> ");
+    add_history(input);
 
-        // Free up input
-        free(input);
+    mpc_result_t r;
+    if (mpc_parse("<stdin>", input, Lispy, &r)) {
+      lval result = eval(r.output);
+      lval_println(result);
+      mpc_ast_delete(r.output);
+    } else {
+      mpc_err_print(r.error);
+      mpc_err_delete(r.error);
     }
 
-    mpc_cleanup(5, Number, Symbol, Sexpr, Expr, Lispy);
+    free(input);
 
-    return 0;
+  }
+
+  mpc_cleanup(4, Number, Operator, Expr, Lispy);
+
+  return 0;
 }
+
+
