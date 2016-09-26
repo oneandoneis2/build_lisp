@@ -27,17 +27,19 @@ void add_history(char* unused) {}
 #endif
 
 /* Declare New Lisp Value Struct */
-typedef struct {
-    int type;
-    long num;
-    int err;
+typedef struct lval {
+  int type;
+  long num;
+  /* Error and Symbol types have some string data */
+  char* err;
+  char* sym;
+  /* Count and Pointer to a list of "lval*" */
+  int count;
+  struct lval** cell;
 } lval;
 
 /* Create Enumeration of Possible lval Types */
-enum { LVAL_NUM, LVAL_ERR };
-
-/* Create Enumeration of Possible Error Types */
-enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
+enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_SEXPR };
 
 /* Create a new number type lval */
 lval lval_num(long x) {
@@ -124,20 +126,21 @@ lval eval(mpc_ast_t* t) {
 
 int main(int argc, char** argv) {
     // Create some parsers
-    mpc_parser_t* Number    = mpc_new("number");
-    mpc_parser_t* Operator  = mpc_new("operator");
-    mpc_parser_t* Expr      = mpc_new("expr");
-    mpc_parser_t* Lispy     = mpc_new("lispy");
+    mpc_parser_t* Number = mpc_new("number");
+    mpc_parser_t* Symbol = mpc_new("symbol");
+    mpc_parser_t* Sexpr  = mpc_new("sexpr");
+    mpc_parser_t* Expr   = mpc_new("expr");
+    mpc_parser_t* Lispy  = mpc_new("lispy");
 
-    // Define them
     mpca_lang(MPCA_LANG_DEFAULT,
-        "                                                           \
-            number      : /-?[0-9]+/ ;                              \
-            operator    : '+' | '-' | '*' | '/' ;                   \
-            expr        : <number> | '(' <operator> <expr>+ ')' ;   \
-            lispy       : /^/ <operator> <expr>+ /$/ ;              \
+        "                                          \
+         number : /-?[0-9]+/ ;                    \
+         symbol : '+' | '-' | '*' | '/' ;         \
+         sexpr  : '(' <expr>* ')' ;               \
+         expr   : <number> | <symbol> | <sexpr> ; \
+         lispy  : /^/ <expr>* /$/ ;               \
         ",
-        Number, Operator, Expr, Lispy);
+        Number, Symbol, Sexpr, Expr, Lispy);
 
     puts("Lispy version 0.0.0.0.1");
     puts("Press Ctrl+c to Exit");
@@ -166,7 +169,7 @@ int main(int argc, char** argv) {
         free(input);
     }
 
-    mpc_cleanup(4, Number, Operator, Expr, Lispy);
+    mpc_cleanup(5, Number, Symbol, Sexpr, Expr, Lispy);
 
     return 0;
 }
